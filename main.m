@@ -10,9 +10,9 @@
 %    .\data\raw\ROOM\         Raw recordings + per-file metadata
 %    .\data\processed\ROOM\   Recovered IRs + computed parameters
 %    .\figures\ROOM\          PDF figures for LaTeX
-
+ 
 clear; close all; clc;
-
+ 
 %% ====================================================================
 %  1. PROJECT PATHS
 %  ====================================================================
@@ -20,7 +20,7 @@ paths.ess       = fullfile('.', 'data', 'ess');
 paths.raw       = fullfile('.', 'data', 'raw');
 paths.processed = fullfile('.', 'data', 'processed');
 paths.figures   = fullfile('.', 'figures');
-
+ 
 %% ====================================================================
 %  2. GLOBAL ANALYSIS SETTINGS
 %  ====================================================================
@@ -28,7 +28,7 @@ cfg.irLenSec  = 1.0;      % max IR length to keep [s]
 cfg.outChPref = 1;         % preferred output channel (1 for mono recordings)
 cfg.t_D50     = 50;        % early/late boundary for D50 [ms]
 cfg.t_D80     = 80;        % early/late boundary for D80 [ms]
-
+ 
 %% ====================================================================
 %  3. ROOM AND MEASUREMENT DEFINITIONS
 %  ====================================================================
@@ -41,18 +41,22 @@ cfg.t_D80     = 80;        % early/late boundary for D80 [ms]
 
 rooms = struct();
 
-% --- Example room: Lecture Hall A ---
-rooms(1).name = 'lecture_hall_A';
-rooms(1).measurements = {
-    % label             recording filename      ESS filename
-    'src1_front',       'src1_front',           'ess_10s.wav'
-    'src1_mid',         'src1_mid',             'ess_10s.wav'
-    'src1_back',        'src1_back',            'ess_10s.wav'
+roomNames = {'EXP_204', 'ISEC_102', 'SNELL_168', 'ROBINSON_109', ...
+             'EV_002', 'MUGAR_201', 'WVG_108', 'WVF_020', 'SHILLMAN_215'};
+
+defaultMeas = {
+    'src1_front',  'src1_front',  'ess_10s.wav'
+    'src1_mid',    'src1_mid',    'ess_10s.wav'
+    'src1_back',   'src1_back',   'ess_10s.wav'
+    'src2_front',  'src2_front',  'ess_10s.wav'
+    'src2_mid',    'src2_mid',    'ess_10s.wav'
+    'src2_back',   'src2_back',   'ess_10s.wav'
 };
 
-% --- Add more rooms below ---
-% rooms(2).name = 'classroom_B';
-% rooms(2).measurements = { ... };
+for ri = 1:numel(roomNames)
+    rooms(ri).name = roomNames{ri};
+    rooms(ri).measurements = defaultMeas;
+end
 
 %% ====================================================================
 %  4. PROCESS ALL ROOMS
@@ -69,6 +73,14 @@ for ri = 1:numel(rooms)
     if ~exist(procDir, 'dir'), mkdir(procDir); end
     if ~exist(figDir,  'dir'), mkdir(figDir);  end
  
+    % Load room-level metadata (applies to all measurements in this room)
+    roomMetaFile = fullfile(paths.raw, room.name, [room.name, '_meta.json']);
+    roomMeta = struct();
+    if isfile(roomMetaFile)
+        roomMeta = jsondecode(fileread(roomMetaFile));
+        fprintf('  Room metadata: %s\n', roomMetaFile);
+    end
+ 
     % Accumulate parameters and IRs for room summary
     allParams = {};
     allIRs    = {};
@@ -82,12 +94,12 @@ for ri = 1:numel(rooms)
         fprintf('\n========  %s / %s  ========\n', room.name, label);
  
         % -- File paths --
-        recFile  = fullfile(paths.raw, room.name, [recName, '.wav']);
-        essFile  = fullfile(paths.ess, essName);
-        metaFile = fullfile(paths.raw, room.name, [recName, '_meta.json']);
-        irFile   = fullfile(procDir, [label, '_ir.wav']);
-        paramFile = fullfile(procDir, [label, '_params.json']);
-        figFile  = fullfile(figDir, [label, '.pdf']);
+        recFile      = fullfile(paths.raw, room.name, [recName, '.wav']);
+        essFile      = fullfile(paths.ess, essName);
+        fileMetaFile = fullfile(paths.raw, room.name, [recName, '_meta.json']);
+        irFile       = fullfile(procDir, [label, '_ir.wav']);
+        paramFile    = fullfile(procDir, [label, '_params.json']);
+        figFile      = fullfile(figDir, [label, '.pdf']);
  
         % -- Check files exist --
         if ~isfile(recFile)
@@ -99,18 +111,25 @@ for ri = 1:numel(rooms)
             continue;
         end
  
-        % -- Load per-file metadata if available --
-        meta = struct();
-        if isfile(metaFile)
-            meta = jsondecode(fileread(metaFile));
-            fprintf('  Loaded metadata from %s\n', metaFile);
+        % -- Merge metadata: room defaults ← per-file overrides --
+        meta = roomMeta;
+        if isfile(fileMetaFile)
+            fileMeta = jsondecode(fileread(fileMetaFile));
+            % Per-file fields override room-level fields
+            fileFields = fieldnames(fileMeta);
+            for fi = 1:numel(fileFields)
+                meta.(fileFields{fi}) = fileMeta.(fileFields{fi});
+            end
+            fprintf('  Metadata: room + file override (%s)\n', fileMetaFile);
+        elseif ~isempty(fieldnames(roomMeta))
+            fprintf('  Metadata: room defaults\n');
         end
  
-        % -- Merge metadata into config --
+        % -- Build per-measurement config --
         mcfg = cfg;
-        if isfield(meta, 'f1'),     mcfg.f1 = meta.f1;         else, mcfg.f1 = []; end
-        if isfield(meta, 'f2'),     mcfg.f2 = meta.f2;         else, mcfg.f2 = []; end
-        if isfield(meta, 'out_ch'), mcfg.outChPref = meta.out_ch; end
+        if isfield(meta, 'f1'),     mcfg.f1 = meta.f1;            else, mcfg.f1 = []; end
+        if isfield(meta, 'f2'),     mcfg.f2 = meta.f2;            else, mcfg.f2 = []; end
+        if isfield(meta, 'out_ch'), mcfg.outChPref = meta.out_ch;  end
  
         % -- Deconvolve --
         [h, params, fs] = deconvolve(essFile, recFile, mcfg);
@@ -123,8 +142,15 @@ for ri = 1:numel(rooms)
         params.room  = room.name;
         params.ess_file = essName;
         params.rec_file = [recName, '.wav'];
-        if isfield(meta, 'hvac'),  params.hvac  = meta.hvac;  end
-        if isfield(meta, 'notes'), params.notes = meta.notes; end
+ 
+        % Pass through all non-analysis metadata fields
+        analysisFields = {'f1', 'f2', 'out_ch'};
+        metaFields = fieldnames(meta);
+        for fi = 1:numel(metaFields)
+            if ~ismember(metaFields{fi}, analysisFields)
+                params.(metaFields{fi}) = meta.(metaFields{fi});
+            end
+        end
  
         fid = fopen(paramFile, 'w');
         fprintf(fid, '%s', jsonencode(params, 'PrettyPrint', true));
@@ -134,8 +160,8 @@ for ri = 1:numel(rooms)
         plot_ir(h, params, fs, label, figFile, mcfg.irLenSec);
  
         % -- Accumulate for summary --
-        allParams{end+1} = params;   %#ok 
-        allIRs{end+1}    = h;        %#ok 
+        allParams{end+1} = params; %#ok<AGROW>
+        allIRs{end+1}    = h;     %#ok<AGROW>
  
         fprintf('  Saved: %s\n', irFile);
         fprintf('         %s\n', paramFile);
