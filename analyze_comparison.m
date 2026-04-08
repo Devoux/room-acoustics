@@ -51,10 +51,18 @@ groupIdx  = [];
 groupName = {};
 posLabel  = {};
 
+posExpected = {'src1_front', 'src1_mid', 'src1_back', ...
+               'src2_front', 'src2_mid', 'src2_back'};
+
 for ri = 1:nRooms
     pFiles = dir(fullfile(paths.processed, roomNames{ri}, '*_params.json'));
     for fi = 1:numel(pFiles)
         p = jsondecode(fileread(fullfile(pFiles(fi).folder, pFiles(fi).name)));
+        if ~ismember(p.label, posExpected)
+            fprintf('  Skipping %s (label="%s", not a measurement position)\n', ...
+                    pFiles(fi).name, p.label);
+            continue;
+        end
         for pi = 1:nParams
             vals.(paramLabels{pi})(end+1) = p.(paramLabels{pi}); %#ok<SAGROW>
         end
