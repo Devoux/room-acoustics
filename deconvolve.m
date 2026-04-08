@@ -108,13 +108,15 @@ function [h, params, fs] = deconvolve(essFile, recFile, cfg)
     % ==================================================================
     %  5. Build output params struct
     % ==================================================================
-    params.T20  = p.T20;
-    params.T30  = p.T30;
-    params.D50  = p.D50;
-    params.C50  = p.C50;
-    params.D80  = p.D80;
-    params.C80  = p.C80;
-    params.Ts   = p.Ts;
+    params.T20     = p.T20;
+    params.T20_R2  = p.T20_R2;
+    params.T30     = p.T30;
+    params.T30_R2  = p.T30_R2;
+    params.D50     = p.D50;
+    params.C50     = p.C50;
+    params.D80     = p.D80;
+    params.C80     = p.C80;
+    params.Ts      = p.Ts;
     params.fs   = fs;
     params.ir_length_s    = numel(h) / fs;
     params.ess_bandwidth  = [f1_use, f2_use];
@@ -122,8 +124,8 @@ function [h, params, fs] = deconvolve(essFile, recFile, cfg)
     params.lundeby_idx    = lundebyIdx;
     params.edc_dB         = edc_dB;
 
-    fprintf('  T20   = %.4f s\n', params.T20);
-    fprintf('  T30   = %.4f s\n', params.T30);
+    fprintf('  T20   = %.4f s   (R² = %.4f)\n', params.T20, params.T20_R2);
+    fprintf('  T30   = %.4f s   (R² = %.4f)\n', params.T30, params.T30_R2);
     fprintf('  D50   = %.1f %%   (C50 = %.1f dB)\n', params.D50*100, params.C50);
     fprintf('  D80   = %.1f %%   (C80 = %.1f dB)\n', params.D80*100, params.C80);
     fprintf('  Ts    = %.1f ms\n', params.Ts*1000);
@@ -359,17 +361,23 @@ function params = room_parameters(h, fs, t_D50_ms, t_D80_ms, truncIdx)
 
     edc_lin = flipud(cumsum(flipud(h2)));
     edc_dB  = 10*log10(edc_lin / edc_lin(1) + eps);
-    params.T20 = rt_from_edc(edc_dB, t, -5, -25);
-    params.T30 = rt_from_edc(edc_dB, t, -5, -35);
+    [params.T20, params.T20_R2] = rt_from_edc(edc_dB, t, -5, -25);
+    [params.T30, params.T30_R2] = rt_from_edc(edc_dB, t, -5, -35);
 end
 
 
-function RT = rt_from_edc(edc_dB, t, upperLim, lowerLim)
+function [RT, R2] = rt_from_edc(edc_dB, t, upperLim, lowerLim)
 % RT_FROM_EDC  Reverberation time by least-squares fit to EDC.
+%   Also returns R² of the linear regression (fit quality).
 
     idx = (edc_dB >= lowerLim) & (edc_dB <= upperLim);
-    if sum(idx) < 3, RT = NaN; return; end
+    if sum(idx) < 3, RT = NaN; R2 = NaN; return; end
     p = polyfit(t(idx), edc_dB(idx), 1);
-    if p(1) >= 0, RT = NaN; return; end
+    if p(1) >= 0, RT = NaN; R2 = NaN; return; end
     RT = -60 / p(1);
+
+    y_fit  = polyval(p, t(idx));
+    SS_res = sum((edc_dB(idx) - y_fit).^2);
+    SS_tot = sum((edc_dB(idx) - mean(edc_dB(idx))).^2);
+    R2 = 1 - SS_res / max(SS_tot, eps);
 end

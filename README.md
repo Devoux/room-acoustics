@@ -31,8 +31,9 @@ MATLAB scripts for measuring room impulse responses using Exponential Sine Sweep
 
 ```
 data/ess/                          Excitation signals
+data/raw/ROOM_NAME/ROOM_NAME_meta.json  Room-level metadata (optional)
 data/raw/ROOM_NAME/*.wav           Raw recordings
-data/raw/ROOM_NAME/*_meta.json     Per-file metadata (optional)
+data/raw/ROOM_NAME/*_meta.json     Per-file metadata overrides (optional)
 data/processed/ROOM_NAME/*_ir.wav  Recovered impulse responses
 data/processed/ROOM_NAME/*_params.json
 data/processed/ROOM_NAME/summary.json
@@ -42,17 +43,30 @@ figures/ROOM_NAME/summary.pdf      Room-level comparison
 
 ## Metadata Format
 
-Optional JSON file placed next to each recording. All fields are optional:
+Metadata uses two levels. A **room-level** JSON applies to all measurements in that room. An optional **per-file** JSON overrides specific fields for one recording.
 
+Room-level: `data/raw/ROOM_NAME/ROOM_NAME_meta.json`
 ```json
 {
     "f1": 20,
     "f2": 20000,
     "out_ch": 1,
     "hvac": "on",
-    "notes": "Front row center, mic at 1.2m, 3m from source"
+    "room_type": "lecture_hall",
+    "approx_volume_m3": 450,
+    "notes": "Measured 2026-04-05, room unoccupied"
 }
 ```
+
+Per-file override: `data/raw/ROOM_NAME/src1_front_meta.json`
+```json
+{
+    "hvac": "off",
+    "notes": "Repeated with HVAC off"
+}
+```
+
+All fields are optional at both levels. Per-file values take precedence over room-level values. Analysis fields recognized by the scripts: `f1`, `f2`, `out_ch`. Everything else (`hvac`, `notes`, `room_type`, etc.) is passed through to the output parameter JSONs.
 
 If `f1`/`f2` are omitted, the sweep bandwidth is estimated automatically from the signal. Specifying them is recommended when known.
 

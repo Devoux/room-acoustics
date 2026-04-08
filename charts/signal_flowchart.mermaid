@@ -1,0 +1,39 @@
+---
+config:
+  layout: fixed
+---
+flowchart LR
+    X["ESS input<br>x(t)"] --> J1((" "))
+    J1 --> P["Physical system<br>speaker + room + microphone<br>impulse response h(t)"] & F["Farina inverse filter<br>generate x⁻¹(t) from known sweep"]
+    P --> Y["Measured signal<br>y(t) = x(t) * h(t)"]
+    Y --> J2((" "))
+    J2 --> D["Deconvolution / convolution<br>y(t) * x⁻¹(t)"]
+    D --> M["x(t) * x⁻¹(t) ≈ δ(t)"]
+    M --> H["Recovered impulse response<br>ĥ(t) ≈ h(t)"]
+    F --> J2
+    H --> n1["Lundeby truncation"]
+    n1 --> n2["Shroeder integration + Chu correction"]
+    n2 --> O["EDC"]
+    O --> n3["T20 + D50"]
+
+    n1@{ shape: rect}
+    n2@{ shape: rect}
+    n3@{ shape: rect}
+     X:::io
+     J1:::junction
+     P:::sys
+     F:::sys
+     Y:::io
+     J2:::junction
+     D:::sys
+     M:::math
+     H:::out
+     n1:::out
+     n2:::out
+     O:::out
+     n3:::out
+    classDef io fill:#EAF4FF,stroke:#4A90E2,stroke-width:1.8px,color:#111
+    classDef sys fill:#FFF4E5,stroke:#F5A623,stroke-width:2px,color:#111
+    classDef math fill:#F3E8FF,stroke:#9B59B6,stroke-width:1.8px,color:#111
+    classDef out fill:#E8F8EC,stroke:#27AE60,stroke-width:1.8px,color:#111
+    classDef junction fill:#ffffff,stroke:#555,stroke-width:1.5px,color:#111
